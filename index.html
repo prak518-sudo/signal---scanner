@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLT Signal Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%;
+    min-height: 100vh;
+    background: #080808;
+    color: #c8c4b8;
+    font-family: 'Courier Prime', monospace;
+    overflow-x: hidden;
+  }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 32px 80px; }
+
+  .page-title { font-family: 'Oswald', sans-serif; font-size: 52px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #f0ece0; margin-bottom: 4px; }
+  .page-title span { color: #4a9eff; }
+  .page-sub { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #2a2a2a; margin-bottom: 36px; }
+
+  .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .top-label { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: #222; }
+  .live-ind { display: flex; align-items: center; gap: 6px; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #4a9eff; }
+  .ldot { width: 6px; height: 6px; border-radius: 50%; background: #4a9eff; animation: blink 1.6s ease-in-out infinite; }
+  .ldot.off { background: #333; animation: none; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  @keyframes ping { 0%{opacity:0.5;transform:scale(1)} 100%{opacity:0;transform:scale(2.8)} }
+
+  .now-playing { background: #0d0d0a; border: 1px solid rgba(255,255,255,0.07); padding: 28px 32px; margin-bottom: 16px; display: flex; align-items: center; gap: 28px; }
+  .dish-wrap { flex-shrink: 0; position: relative; width: 64px; height: 76px; }
+  .pring { position: absolute; top: 10px; left: 10px; width: 16px; height: 16px; border-radius: 50%; border: 1px solid #4a9eff; opacity: 0; }
+  .pring.on { animation: ping 2s ease-out infinite; }
+  .pring.on.d { animation-delay: 0.7s; }
+  .np-info { flex: 1; min-width: 0; }
+  .np-lbl { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: #2a2a2a; display: block; margin-bottom: 8px; }
+  .np-name { font-family: 'Oswald', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #f0ece0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .np-desc { font-size: 11px; color: #555; margin-top: 6px; letter-spacing: 0.05em; line-height: 1.5; }
+  .np-meta { display: flex; align-items: center; gap: 20px; margin-top: 10px; flex-wrap: wrap; }
+  .np-freq { font-size: 14px; color: #4a9eff; letter-spacing: 0.1em; }
+  .np-note { font-size: 10px; color: #666; letter-spacing: 0.06em; font-style: italic; }
+
+  .wave-wrap { height: 56px; margin-bottom: 16px; background: #0d0d0a; border: 1px solid rgba(255,255,255,0.04); overflow: hidden; }
+  .wave-wrap canvas { width: 100%; height: 100%; display: block; }
+
+  .controls { display: flex; align-items: center; gap: 20px; margin-bottom: 32px; padding: 18px 24px; background: #0d0d0a; border: 1px solid rgba(255,255,255,0.04); }
+  .pbtn { width: 52px; height: 52px; border-radius: 50%; background: #4a9eff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.15s, transform 0.1s; }
+  .pbtn:hover { opacity: 0.85; }
+  .pbtn:active { transform: scale(0.96); }
+  .pi { width: 0; height: 0; border-style: solid; border-width: 9px 0 9px 16px; border-color: transparent transparent transparent #080808; margin-left: 4px; }
+  .paus { display: flex; gap: 4px; }
+  .pb { width: 4px; height: 18px; background: #080808; border-radius: 1px; }
+  .vol-row { display: flex; align-items: center; gap: 12px; flex: 1; }
+  .clbl { font-size: 9px; letter-spacing: 0.14em; color: #2a2a2a; text-transform: uppercase; white-space: nowrap; }
+  .vol-row input[type=range] { flex: 1; height: 3px; accent-color: #4a9eff; cursor: pointer; }
+  .cval { font-size: 11px; color: #4a9eff; min-width: 30px; text-align: right; }
+  .stat-txt { font-size: 10px; color: #2a2a2a; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+
+  .info-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: rgba(255,255,255,0.03); margin-bottom: 32px; }
+  .icard { background: #080808; padding: 16px 18px; }
+  .icard-lbl { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: #222; display: block; margin-bottom: 6px; }
+  .icard-val { font-size: 18px; color: #4a9eff; }
+
+  .sec-lbl { font-size: 9px; letter-spacing: 0.24em; text-transform: uppercase; color: #222; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+  .sec-lbl::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.04); }
+
+  .sgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; background: rgba(255,255,255,0.035); margin-bottom: 36px; }
+  @media(max-width:640px) { .sgrid { grid-template-columns: 1fr; } .info-row { grid-template-columns: 1fr; } }
+
+  .sc { background: #080808; padding: 18px 20px; cursor: pointer; transition: background 0.15s; border-left: 3px solid transparent; display: flex; align-items: center; gap: 14px; }
+  .sc:hover { background: #0e0e0b; }
+  .sc.active { border-left-color: #4a9eff; background: #0d0d0a; }
+  .sdot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid #2a2a2a; flex-shrink: 0; transition: all 0.2s; }
+  .sc.active .sdot { background: #4a9eff; border-color: #4a9eff; animation: blink 1.6s ease-in-out infinite; }
+  .sinfo { flex: 1; min-width: 0; }
+  .sname { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color 0.15s; }
+  .sc.active .sname, .sc:hover .sname { color: #f0ece0; }
+  .ssub { font-size: 10px; color: #2a2a2a; margin-top: 3px; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sbadge { font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 7px; border-radius: 2px; flex-shrink: 0; }
+  .b-space { background: rgba(74,158,255,0.1); color: #4a9eff; }
+  .b-atc { background: rgba(29,158,117,0.1); color: #1D9E75; }
+  .b-ambient { background: rgba(186,117,23,0.1); color: #BA7517; }
+  .b-tlt { background: rgba(240,236,224,0.05); color: #555; }
+  .sfreq { font-size: 10px; color: #4a9eff; flex-shrink: 0; opacity: 0; transition: opacity 0.2s; white-space: nowrap; }
+  .sc.active .sfreq, .sc:hover .sfreq { opacity: 1; }
+
+  .streaming-note { background: rgba(74,158,255,0.05); border: 1px solid rgba(74,158,255,0.15); padding: 14px 18px; margin-bottom: 32px; font-size: 11px; color: #444; letter-spacing: 0.06em; line-height: 1.6; }
+  .streaming-note span { color: #4a9eff; }
+
+  .footer { display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.04); }
+  .fnote { font-size: 9px; color: #1a1a1a; letter-spacing: 0.1em; text-transform: uppercase; }
+  .fcount { font-size: 9px; color: #222; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="page-title">Signal <span>Scanner</span></div>
+  <div class="page-sub">// TLT live frequency monitor — tune in to the cosmos</div>
+
+  <div class="top-bar">
+    <div class="top-label">// TLT Signal Scanner — Live Audio Frequencies</div>
+    <div class="live-ind">
+      <div class="ldot off" id="ldot"></div>
+      <span id="ltxt">Offline</span>
+    </div>
+  </div>
+
+  <div class="now-playing">
+    <div class="dish-wrap">
+      <div class="pring" id="pr1"></div>
+      <div class="pring d" id="pr2"></div>
+      <svg width="64" height="76" viewBox="0 0 48 56" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 14 Q24 9 30 14" fill="none" stroke="#4a9eff" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M13 10 Q24 4 35 10" fill="none" stroke="#4a9eff" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+        <path d="M8 6 Q24 -1 40 6" fill="none" stroke="#4a9eff" stroke-width="0.6" stroke-linecap="round" opacity="0.25"/>
+        <circle cx="24" cy="18" r="2.5" fill="none" stroke="#4a9eff" stroke-width="0.9"/>
+        <circle cx="24" cy="18" r="1" fill="#4a9eff"/>
+        <line x1="24" y1="18" x2="24" y2="28" stroke="#f0ece0" stroke-width="1.2" stroke-linecap="round"/>
+        <path d="M8 28 Q24 44 40 28" fill="none" stroke="#f0ece0" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M11 28 Q24 41 37 28" fill="none" stroke="#4a9eff" stroke-width="0.5" stroke-linecap="round" opacity="0.3"/>
+        <circle cx="8" cy="28" r="1.2" fill="#4a9eff" opacity="0.6"/>
+        <circle cx="40" cy="28" r="1.2" fill="#4a9eff" opacity="0.6"/>
+        <line x1="24" y1="36" x2="24" y2="46" stroke="#f0ece0" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="16" y1="46" x2="32" y2="46" stroke="#f0ece0" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="19" y1="46" x2="13" y2="54" stroke="#f0ece0" stroke-width="1.1" stroke-linecap="round"/>
+        <line x1="29" y1="46" x2="35" y2="54" stroke="#f0ece0" stroke-width="1.1" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="np-info">
+      <span class="np-lbl">Now receiving</span>
+      <div class="np-name" id="np-name">Select a station</div>
+      <div class="np-desc" id="np-desc">Choose a frequency below to begin receiving the signal</div>
+      <div class="np-meta">
+        <div class="np-freq" id="np-freq">— Hz</div>
+        <div class="np-note" id="np-note"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wave-wrap"><canvas id="wc"></canvas></div>
+
+  <div class="controls">
+    <button class="pbtn" id="pbtn" onclick="togglePlay()">
+      <div class="pi" id="picon"></div>
+    </button>
+    <div class="vol-row">
+      <span class="clbl">Vol</span>
+      <input type="range" min="0" max="100" value="80" step="1" id="vslider" oninput="setVol(this.value)"/>
+      <span class="cval" id="vval">80</span>
+    </div>
+    <div class="stat-txt" id="stxt">No signal</div>
+  </div>
+
+  <div class="streaming-note">
+    <span>// Live audio note:</span> Stations marked LIVE stream real audio directly in your browser. Stations marked LINK open the source in a new tab. All sources are free and legal to stream.
+  </div>
+
+  <div class="info-row">
+    <div class="icard"><span class="icard-lbl">Stations available</span><div class="icard-val">08</div></div>
+    <div class="icard"><span class="icard-lbl">Receivers online</span><div class="icard-val" id="recv">—</div></div>
+    <div class="icard"><span class="icard-lbl">Signal strength</span><div class="icard-val" id="sigstr">—</div></div>
+  </div>
+
+  <div class="sec-lbl">Available frequencies</div>
+
+  <div class="sgrid">
+    <div class="sc" onclick="sel(0)"><div class="sdot"></div><div class="sinfo"><div class="sname">Deep Space One</div><div class="ssub">SomaFM — Ambient space music · LIVE</div></div><span class="sbadge b-space">Space</span><div class="sfreq">432 Hz</div></div>
+    <div class="sc" onclick="sel(1)"><div class="sdot"></div><div class="sinfo"><div class="sname">Drone Zone</div><div class="ssub">SomaFM — Dark cinematic ambient · LIVE</div></div><span class="sbadge b-ambient">Ambient</span><div class="sfreq">40 Hz</div></div>
+    <div class="sc" onclick="sel(2)"><div class="sdot"></div><div class="sinfo"><div class="sname">Mission Control</div><div class="ssub">SomaFM — Space themed electronic · LIVE</div></div><span class="sbadge b-space">Space</span><div class="sfreq">121 MHz</div></div>
+    <div class="sc" onclick="sel(3)"><div class="sdot"></div><div class="sinfo"><div class="sname">Air Traffic Control</div><div class="ssub">LiveATC.net — Global feeds · LINK</div></div><span class="sbadge b-atc">ATC</span><div class="sfreq">121.5 MHz</div></div>
+    <div class="sc" onclick="sel(4)"><div class="sdot"></div><div class="sinfo"><div class="sname">Shortwave Radio</div><div class="ssub">WebSDR — Tune any frequency · LINK</div></div><span class="sbadge b-ambient">Radio</span><div class="sfreq">7.0 MHz</div></div>
+    <div class="sc" onclick="sel(5)"><div class="sdot"></div><div class="sinfo"><div class="sname">Space Weather Radio</div><div class="ssub">SomaFM — Fluid ambient · LIVE</div></div><span class="sbadge b-space">Space</span><div class="sfreq">20 MHz</div></div>
+    <div class="sc" onclick="sel(6)"><div class="sdot"></div><div class="sinfo"><div class="sname">Numbers Stations</div><div class="ssub">Priyom.org — Shortwave numbers · LINK</div></div><span class="sbadge b-ambient">Radio</span><div class="sfreq">14 MHz</div></div>
+    <div class="sc" onclick="sel(7)"><div class="sdot"></div><div class="sinfo"><div class="sname">TLT Transmission 001</div><div class="ssub">Original broadcast — coming soon</div></div><span class="sbadge b-tlt">TLT</span><div class="sfreq">TLT-001</div></div>
+  </div>
+
+  <div class="footer">
+    <div class="fnote">Signal Scanner v1.0 — thelosttransmission.com</div>
+    <div class="fcount" id="fcnt"></div>
+  </div>
+
+</div>
+
+<audio id="ap" crossorigin="anonymous" preload="none"></audio>
+
+<script>
+var stations = [
+  {
+    name: 'Deep Space One',
+    desc: 'SomaFM — Psychedelic space music. Fusing ambient, electronica and new age into an interstellar journey.',
+    freq: '432.0 Hz',
+    note: 'Live audio stream — SomaFM Deep Space One',
+    type: 'live',
+    stream: 'https://ice1.somafm.com/deepspaceone-128-aac',
+    fallback: 'https://ice2.somafm.com/deepspaceone-128-aac'
+  },
+  {
+    name: 'Drone Zone',
+    desc: 'SomaFM — Served best chilled, safe with most medications. Targeted hits with atmospheric textures and cinematic imagery.',
+    freq: '40.0 Hz',
+    note: 'Live audio stream — SomaFM Drone Zone',
+    type: 'live',
+    stream: 'https://ice1.somafm.com/dronezone-128-aac',
+    fallback: 'https://ice2.somafm.com/dronezone-128-aac'
+  },
+  {
+    name: 'Mission Control',
+    desc: 'SomaFM — Informed and reflective music for working and thinking. Electronic with a space-age feel.',
+    freq: '121.0 MHz',
+    note: 'Live audio stream — SomaFM Mission Control',
+    type: 'live',
+    stream: 'https://ice1.somafm.com/missioncontrol-128-aac',
+    fallback: 'https://ice2.somafm.com/missioncontrol-128-aac'
+  },
+  {
+    name: 'Air Traffic Control',
+    desc: 'LiveATC.net — Real-time air traffic control audio feeds from airports and centers around the world.',
+    freq: '121.5 MHz',
+    note: 'Opens LiveATC.net in a new tab — select your airport',
+    type: 'link',
+    url: 'https://www.liveatc.net'
+  },
+  {
+    name: 'Shortwave Radio',
+    desc: 'WebSDR.org — A Software-Defined Radio receiver connected to the internet. Tune into any shortwave frequency worldwide.',
+    freq: '7.0 MHz',
+    note: 'Opens WebSDR.org in a new tab — tune any frequency',
+    type: 'link',
+    url: 'http://websdr.ewi.utwente.nl:8901/'
+  },
+  {
+    name: 'Space Weather Radio',
+    desc: 'SomaFM Fluid — Silky smooth, chilled electronica. Calm and beautiful, ideal for deep focus and cosmic contemplation.',
+    freq: '20.0 MHz',
+    note: 'Live audio stream — SomaFM Fluid',
+    type: 'live',
+    stream: 'https://ice1.somafm.com/fluid-128-aac',
+    fallback: 'https://ice2.somafm.com/fluid-128-aac'
+  },
+  {
+    name: 'Numbers Stations',
+    desc: 'Priyom.org — Live schedule and recordings of shortwave numbers stations. The most mysterious broadcasts on Earth.',
+    freq: '14.2 MHz',
+    note: 'Opens Priyom.org in a new tab — live numbers station schedule',
+    type: 'link',
+    url: 'https://priyom.org'
+  },
+  {
+    name: 'TLT Transmission 001',
+    desc: 'The Lost Transmission original broadcast. Our own signal — incoming. Subscribe to be the first to receive it.',
+    freq: 'TLT-001',
+    note: 'Original TLT content — broadcasting soon. Subscribe below.',
+    type: 'soon',
+    url: null
+  }
+];
+
+var cur = -1, playing = false, waveOn = false, wt = 0;
+var audio = document.getElementById('ap');
+var canvas = document.getElementById('wc');
+var ctx = canvas.getContext('2d');
+
+function resize() { canvas.width = canvas.parentElement.offsetWidth || 900; canvas.height = 56; }
+resize();
+window.addEventListener('resize', resize);
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!waveOn) {
+    ctx.strokeStyle = 'rgba(74,158,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 28); ctx.lineTo(canvas.width, 28); ctx.stroke();
+  } else {
+    ctx.strokeStyle = 'rgba(74,158,255,0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (var x = 0; x < canvas.width; x++) {
+      var y = 28 + Math.sin((x / canvas.width) * Math.PI * 14 + wt) * 13 + Math.sin((x / canvas.width) * Math.PI * 6 + wt * 0.65) * 8 + (Math.random() - 0.5) * 2.5;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(74,158,255,0.2)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    for (var x = 0; x < canvas.width; x++) {
+      var y = 28 + Math.sin((x / canvas.width) * Math.PI * 24 + wt * 1.6) * 5;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    wt += 0.055;
+  }
+  requestAnimationFrame(draw);
+}
+draw();
+
+function sel(idx) {
+  document.querySelectorAll('.sc').forEach(function(el, i) { el.classList.toggle('active', i === idx); });
+  cur = idx;
+  var s = stations[idx];
+  document.getElementById('np-name').textContent = s.name;
+  document.getElementById('np-desc').textContent = s.desc;
+  document.getElementById('np-freq').textContent = s.freq;
+  document.getElementById('np-note').textContent = s.note;
+
+  audio.pause();
+  audio.src = '';
+
+  if (s.type === 'live') {
+    audio.src = s.stream;
+    audio.volume = document.getElementById('vslider').value / 100;
+    audio.play().catch(function() {
+      if (s.fallback) { audio.src = s.fallback; audio.play().catch(function(){}); }
+    });
+    playing = true;
+    waveOn = true;
+    setLive(true, 'Receiving');
+    setStatus('Signal locked');
+  } else if (s.type === 'link') {
+    window.open(s.url, '_blank');
+    playing = false;
+    waveOn = false;
+    setLive(false, 'Offline');
+    setStatus('Redirected ↗');
+  } else {
+    playing = false;
+    waveOn = false;
+    setLive(false, 'Offline');
+    setStatus('Coming soon');
+  }
+
+  document.getElementById('recv').textContent = String(Math.floor(Math.random() * 500 + 100));
+  document.getElementById('sigstr').textContent = Math.floor(Math.random() * 25 + 70) + '%';
+  document.getElementById('fcnt').textContent = 'Station ' + (idx + 1) + ' of 8';
+  updateBtn();
+}
+
+function togglePlay() {
+  if (cur === -1) return;
+  var s = stations[cur];
+  if (s.type !== 'live') return;
+  playing = !playing;
+  waveOn = playing;
+  if (playing) {
+    if (!audio.src || audio.paused) {
+      audio.src = s.stream;
+      audio.play().catch(function() {});
+    } else {
+      audio.play();
+    }
+    setLive(true, 'Receiving');
+    setStatus('Signal locked');
+  } else {
+    audio.pause();
+    setLive(false, 'Paused');
+    setStatus('Signal paused');
+  }
+  updateBtn();
+}
+
+function setVol(v) {
+  document.getElementById('vval').textContent = v;
+  audio.volume = v / 100;
+}
+
+function setLive(on, txt) {
+  document.getElementById('ldot').className = on ? 'ldot' : 'ldot off';
+  document.getElementById('ltxt').textContent = txt;
+  document.getElementById('pr1').className = on ? 'pring on' : 'pring';
+  document.getElementById('pr2').className = on ? 'pring d on' : 'pring d';
+}
+
+function setStatus(txt) { document.getElementById('stxt').textContent = txt; }
+
+function updateBtn() {
+  document.getElementById('pbtn').innerHTML = playing
+    ? '<div class="paus"><div class="pb"></div><div class="pb"></div></div>'
+    : '<div class="pi"></div>';
+}
+</script>
+</body>
+</html>
